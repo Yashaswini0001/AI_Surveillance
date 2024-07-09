@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Microphone Recorder</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f0f0;
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        .container {
+            position: relative;
+            background-color: #fff;
+            padding: 40px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            width: 50%;
+            animation: fadeIn 1s ease-in-out;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+            to {
+                opacity: 1;
+            }
+        }
+
+        .input-field {
+            margin-bottom: 15px;
+        }
+
+        .input-field input {
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            width: 100%;
+        }
+
+        .btn {
+            padding: 15px 30px;
+            border: none;
+            border-radius: 5px;
+            background-color: #5995fd;
+            color: #fff;
+            cursor: pointer;
+            transition: background-color 0.3s ease, transform 0.1s ease;
+            margin: 5px;
+            text-decoration: none;
+        }
+
+        .btn:active {
+            transform: scale(0.98);
+        }
+
+        .btn:hover {
+            background-color: #4d84e2;
+        }
+
+        .microphone-container {
+            margin: 40px 0;
+        }
+
+        #microphone-icon {
+            width: 150px;
+            height: auto;
+            cursor: pointer;
+            transition: transform 0.3s ease;
+        }
+
+        #microphone-icon:hover {
+            transform: scale(1.1);
+        }
+
+        .btn.logout {
+            background-color: #f44336;
+            text-decoration: none;
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+        }
+
+        .btn.logout:hover {
+            background-color: #e53935;
+        }
+
+        #status {
+            margin-bottom: 20px;
+            transition: color 0.3s ease;
+        }
+
+        #status.recording {
+            color: green;
+        }
+
+        #status.stopped {
+            color: red;
+        }
+
+        #status.processing {
+            color: orange;
+        }
+
+        .file-upload {
+            margin-top: 20px;
+        }
+
+        .file-upload input[type="file"] {
+            display: none;
+        }
+
+        .file-upload label {
+            display: inline-block;
+            padding: 10px 20px;
+            cursor: pointer;
+            background-color: #5995fd;
+            color: white;
+            border-radius: 5px;
+            transition: background-color 0.3s ease, transform 0.1s ease;
+        }
+
+        .file-upload label:hover {
+            background-color: #4d84e2;
+        }
+
+        .file-upload label:active {
+            transform: scale(0.98);
+        }
+
+        #prediction {
+            margin-top: 20px;
+            font-size: 24px;
+            font-weight: bold;
+            transition: transform 0.5s, color 0.5s;
+        }
+
+        #prediction.emergency {
+            color: red;
+            animation: emergencyPulse 1s infinite;
+        }
+
+        #prediction.not-emergency {
+            color: green;
+        }
+
+        @keyframes emergencyPulse {
+            0%, 100% {
+                transform: scale(1);
+            }
+            50% {
+                transform: scale(1.1);
+            }
+        }
+
+        /* Modal styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0, 0, 0, 0.4);
+        }
+
+        .modal-content {
+            background-color: #fff;
+            margin: 15% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 50%;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .modal-content img {
+            width: 100px;
+            height: 100px;
+            margin-bottom: 20px;
+        }
+
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+        }
+
+        .close:hover,
+        .close:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>Audio Recorder</h1>
+        <div id="status" class="stopped">Not Recording</div>
+        <div class="microphone-container">
+            <button id="startBtn" class="btn">Start Recording</button>
+            <button id="stopBtn" class="btn" disabled>Stop Recording</button>
+        </div>
+        <div class="file-upload">
+            <input type="file" id="fileInput" accept=".wav, .mp3">
+            <label for="fileInput">Upload Audio File</label>
+        </div>
+        <div id="prediction" style="margin-top: 20px;"></div>
+        <a href="/logout" class="btn logout">Logout</a>
+        <!-- Siren audio element -->
+        <audio id="siren" src="/static/siren.mp3"></audio>
+    </div>
+
+    <!-- Modal for specific emergency messages -->
+    <div id="emergencyModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <img id="emergencyImage" src="" alt="Emergency Image">
+            <p id="emergencyMessage"></p>
+        </div>
+    </div>
+
+    <script>
+        let audioContext;
+        let mediaStream;
+        let mediaStreamSource;
+        let scriptProcessor;
+        let audioData = [];
+        let recordingLength = 0;
+        let sampleRate;
+
+        document.getElementById('startBtn').addEventListener('click', startRecording);
+        document.getElementById('stopBtn').addEventListener('click', stopRecording);
+
+        async function startRecording() {
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            sampleRate = audioContext.sampleRate;
+            mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            mediaStreamSource = audioContext.createMediaStreamSource(mediaStream);
+            scriptProcessor = audioContext.createScriptProcessor(4096, 1, 1);
+
+            scriptProcessor.onaudioprocess = (event) => {
+                const inputData = event.inputBuffer.getChannelData(0);
+                audioData.push(new Float32Array(inputData));
+                recordingLength += inputData.length;
+            };
+
+            mediaStreamSource.connect(scriptProcessor);
+            scriptProcessor.connect(audioContext.destination);
+
+            document.getElementById('startBtn').disabled = true;
+            document.getElementById('stopBtn').disabled = false;
+            document.getElementById('status').textContent = 'Recording...';
+            document.getElementById('status').classList.remove('stopped');
+            document.getElementById('status').classList.add('recording');
+        }
+
+        function stopRecording() {
+            scriptProcessor.disconnect();
+            mediaStreamSource.disconnect();
+            mediaStream.getTracks().forEach(track => track.stop());
+
+            const buffer = mergeBuffers(audioData, recordingLength);
+            const wavBlob = createWavFile(buffer, sampleRate);
+
+            const formData = new FormData();
+            formData.append('audio', wavBlob, 'audio.wav');
+
+            document.getElementById('status').textContent = 'Processing...';
+            document.getElementById('status').classList.remove('recording');
+            document.getElementById('status').classList.add('processing');
+
+            fetch('/predict', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                const predictionElement = document.getElementById('prediction');
+                predictionElement.textContent = data.message;
+                if (data.emergency) {
+                    predictionElement.classList.add('emergency');
+                    predictionElement.classList.remove('not-emergency');
+                    document.getElementById('siren').play();
+                    showEmergencyModal(data);
+                } else {
+                    predictionElement.classList.add('not-emergency');
+                    predictionElement.classList.remove('emergency');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+            })
+            .finally(() => {
+                audioData = [];
+                recordingLength = 0;
+                document.getElementById('status').textContent = 'Not Recording';
+                document.getElementById('status').classList.remove('processing');
+                document.getElementById('status').classList.add('stopped');
+                document.getElementById('startBtn').disabled = false;
+                document.getElementById('stopBtn').disabled = true;
+            });
+        }
+
+        function mergeBuffers(audioData, recordingLength) {
+            const result = new Float32Array(recordingLength);
+            let offset = 0;
+            for (let i = 0; i < audioData.length; i++) {
+                result.set(audioData[i], offset);
+                offset += audioData[i].length;
+            }
+            return result;
+        }
+
+        function createWavFile(buffer, sampleRate) {
+            const wavBuffer = new ArrayBuffer(44 + buffer.length * 2);
+            const view = new DataView(wavBuffer);
+
+            const writeString = (view, offset, string) => {
+                for (let i = 0; i < string.length; i++) {
+                    view.setUint8(offset + i, string.charCodeAt(i));
+                }
+            };
+
+            writeString(view, 0, 'RIFF');
+            view.setUint32(4, 36 + buffer.length * 2, true);
+            writeString(view, 8, 'WAVE');
+            writeString(view, 12, 'fmt ');
+            view.setUint32(16, 16, true);
+            view.setUint16(20, 1, true);
+            view.setUint16(22, 1, true);
+            view.setUint32(24, sampleRate, true);
+            view.setUint32(28, sampleRate * 2, true);
+            view.setUint16(32, 2, true);
+            view.setUint16(34, 16, true);
+            writeString(view, 36, 'data');
+            view.setUint32(40, buffer.length * 2, true);
+
+            const floatTo16BitPCM = (output, offset, input) => {
+                for (let i = 0; i < input.length; i++, offset += 2) {
+                    const s = Math.max(-1, Math.min(1, input[i]));
+                    output.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+                }
+            };
+
+            floatTo16BitPCM(view, 44, buffer);
+
+            return new Blob([view], { type: 'audio/wav' });
+        }
+
+        function showEmergencyModal(data) {
+            const modal = document.getElementById('emergencyModal');
+            const emergencyImage = document.getElementById('emergencyImage');
+            const emergencyMessage = document.getElementById('emergencyMessage');
+
+            if (data.message.toLowerCase().includes('dog')) {
+                emergencyImage.src = 'static/dog.jpg';
+                emergencyMessage.textContent = 'Dog Emergency Detected';
+            } else if (data.message.toLowerCase().includes('physical assault')) {
+                emergencyImage.src = 'static/physical_assualt.jpg';
+                emergencyMessage.textContent = 'Physical Assault Detected';
+            } else if (data.message.toLowerCase().includes('theft')) {
+                emergencyImage.src = 'static/theft.jpg';
+                emergencyMessage.textContent = 'Theft Detected';
+            } else if (data.message.toLowerCase().includes('fire')) {
+                emergencyImage.src = 'static/fire.jpg';
+                emergencyMessage.textContent = 'Fire Emergency Detected';
+            } else {
+                emergencyImage.src = 'static/emergency.png';
+                emergencyMessage.textContent = data.message;
+            }
+
+            modal.style.display = 'block';
+
+            const closeButton = document.querySelector('.close');
+            closeButton.onclick = function () {
+                modal.style.display = 'none';
+            };
+
+            window.onclick = function (event) {
+                if (event.target === modal) {
+                    modal.style.display = 'none';
+                }
+            };
+        }
+    </script>
+</body>
+
+</html>
