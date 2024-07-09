@@ -1,0 +1,97 @@
+body {
+    font-family: Arial, sans-serif;
+    background-color: #f0f0f0;
+    margin: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+}
+
+.container {
+    background-color: #fff;
+    padding: 40px;
+    border-radius: 10px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    text-align: center;
+    width: 50%;
+    animation: fadeIn 1s ease-in-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+.input-field {
+    margin-bottom: 15px;
+}
+
+.input-field input {
+    padding: 10px;
+    border-radius: 5px;
+    border: 1px solid #ccc;
+    width: 100%;
+}
+
+.btn {
+    padding: 15px 30px;
+    border: none;
+    border-radius: 5px;
+    background-color: #5995fd;
+    color: #fff;
+    cursor: pointer;
+    transition: background-color 0.3s ease, transform 0.1s ease;
+    margin: 5px;
+    text-decoration: none;
+}
+
+.btn:active {
+    transform: scale(0.98);
+}
+
+.btn:hover {
+    background-color: #4d84e2;
+}
+
+.microphone-container {
+    margin: 40px 0;
+}
+
+#microphone-icon {
+    width: 150px;
+    height: auto;
+    cursor: pointer;
+    transition: transform 0.3s ease;
+}
+
+#microphone-icon:hover {
+    transform: scale(1.1);
+}
+
+.btn.logout {
+    background-color: #f44336;
+    text-decoration: none;
+    margin-top: 20px;
+}
+
+.btn.logout:hover {
+    background-color: #e53935;
+}
+
+#status {
+    margin-bottom: 20px;
+    transition: color 0.3s ease;
+}
+
+#status.recording {
+    color: green;
+}
+
+#status.stopped {
+    color: red;
+}
